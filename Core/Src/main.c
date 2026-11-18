@@ -110,7 +110,7 @@ int main(void)
       }
     }
     if(B==1){
-    HAL_Delay(500);
+    HAL_Delay(250);
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8);
     }
