@@ -46,6 +46,7 @@
 /* USER CODE BEGIN PV */
 volatile uint8_t B=0;
 volatile uint8_t k=0;
+volatile uint32_t scan=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -164,8 +165,9 @@ void SystemClock_Config(void)
   void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) 
   {
   if (GPIO_Pin == GPIO_PIN_14){
-      if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_14)==GPIO_PIN_RESET){
+      if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_14)==GPIO_PIN_RESET && (uint32_t)(HAL_GetTick()-scan)>=20U){
       k=!k;
+      scan=HAL_GetTick();
     }
     }
   }
