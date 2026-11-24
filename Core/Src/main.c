@@ -67,6 +67,7 @@ void SystemClock_Config(void);
 void Servo_Init(void);
 void caul(uint16_t angle);
 void swing();
+void contrl();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -133,7 +134,8 @@ int main(void)
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13,GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9,GPIO_PIN_SET);
     }
-    swing();
+    /*swing();*/
+    contrl();
   }
     /* USER CODE END WHILE */
 
@@ -297,6 +299,12 @@ void swing(){
     }
   }
   caul(angle);
+}
+void contrl(){
+  int Ck=0;
+  int mu=HAL_ADC_GetValue(&hadc1);
+  Ck=1000+mu*2000/4025;
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, Ck);
 }
 /* USER CODE END 4 */
 
