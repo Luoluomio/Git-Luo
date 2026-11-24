@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
 #include "tim.h"
 #include "gpio.h"
 
@@ -45,14 +46,27 @@
 
 /* USER CODE BEGIN PV */
 volatile uint8_t B=0;
-volatile uint8_t k=0;
+volatile uint8_t a=0;
+volatile uint8_t m=0;
+volatile uint8_t n=0;
+volatile uint8_t plus=1;
+volatile uint16_t ccr = 0;
+volatile uint32_t ccrt = 0;
+volatile int8_t   dir = 1;
 volatile uint32_t scan=0;
+volatile uint32_t k=0;
+volatile uint16_t angle=0;
+
+volatile uint16_t raw;
+volatile float volt;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void Servo_Init(void);
+void caul(uint16_t angle);
+void swing();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -67,7 +81,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
- 
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -76,8 +90,6 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 15, 0);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -90,35 +102,44 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM2_Init();
+  MX_TIM1_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-   HAL_TIM_Base_Start_IT(&htim2); 
+  HAL_TIM_Base_Start_IT(&htim2); 
+  HAL_TIM_Base_Start_IT(&htim3); 
+  HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+  Servo_Init();
+  HAL_ADCEx_Calibration_Start(&hadc1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {   
-    if(k==1){
-      HAL_Delay(20);
-      if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_14) == GPIO_PIN_RESET){
-        B=1;
-      }
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1,10);
+    raw=HAL_ADC_GetValue(&hadc1);
+    volt=raw*3.3/4095.0f;
+    HAL_ADC_Stop(&hadc1);
+
+    if(B==0){
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13,GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9,GPIO_PIN_RESET);
     }
-    if(k==0){
-      HAL_Delay(20);
-      if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_14) == GPIO_PIN_RESET){
-        B=0;
-      }
+    if(a==1){
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13,GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9,GPIO_PIN_SET);
     }
-    if(B==1){
-    HAL_Delay(250);
-    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8);
-    }
+    swing();
   }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+
   /* USER CODE END 3 */
 }
 
@@ -130,6 +151,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -159,6 +181,12 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV2;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
@@ -166,20 +194,110 @@ void SystemClock_Config(void)
   {
   if (GPIO_Pin == GPIO_PIN_14){
       if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_14)==GPIO_PIN_RESET && (uint32_t)(HAL_GetTick()-scan)>=20U){
-      k=!k;
+        n=!n;
+        m=1;
       scan=HAL_GetTick();
+      k=HAL_GetTick();
+      ccr=0;
+      dir=1;
     }
-    }
+      if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_14)==GPIO_PIN_SET && m==1 && (uint32_t)(HAL_GetTick()-k)>=20U){
+        m=0;
+        if(HAL_GetTick()-k>=1000U){
+          B=!B;
+          if(B==1){
+            a=2;
+          }
+        }
+        else{
+         if(B==1){
+         B=0;
+         a=2;
+         }
+         else if(B==0 && a==0){
+           a=1;
+           m=0;
+         }
+         else if(B==0 && a==1){
+          a=0;
+         }
+         if(B==0 && a==2){
+          a=1;
+         }
+        }
+      }
+}
   }
-  
  void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) 
 {
-    if (htim->Instance == TIM2 && B==1) 
+    if (htim->Instance == TIM3) 
     {
+      if (B==1){
         HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_9);
+        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     }
+    }
+    if (htim->Instance == TIM2) 
+    {
+        if (n==1){
+      if(dir==1){
+        ccr+=1;
+        if(ccr>=1000){
+          ccr=1000;
+          dir=-1;
+        }
+      }
+      else{
+        ccr-=1;
+        if(ccr<=10){
+          ccr=0;
+          dir=1;
+        }
+      }
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, ccr);
+    }
+
+    }
+  }
+   
+
+void Servo_Init(void){
+  angle=90;
+   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 1500);
 }
 
+void caul(uint16_t angle){
+  if(angle>=180){
+    angle=180;
+    plus=0;
+  }
+  else if(angle<=0){
+    angle=0;
+    plus=1;
+  }
+  ccrt=500+angle*2000/180;
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, ccrt);
+}
+void swing(){
+  static uint32_t servo_last  = 0;
+  if (HAL_GetTick() - servo_last < 15) return;
+  servo_last = HAL_GetTick();
+  if(plus==1){
+    angle++;
+    if(angle>=180){
+      angle=180;
+      plus=-1;
+    }
+  }
+  else{
+    angle--;
+    if(angle<=0){
+      angle=0;
+      plus=1;
+    }
+  }
+  caul(angle);
+}
 /* USER CODE END 4 */
 
 /**
